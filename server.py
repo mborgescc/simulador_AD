@@ -19,16 +19,28 @@ class Server:
                     flags["line2"] = True
                     flags["save_service"] = False
                     self.running = True
-                    self.serving = Thread(self.serve, (line2.next(), flags))
+                    next_service = line2.next()
+                    next_service.t_line2.stop()
+                    self.serving = Thread(self.serve, (next_service, flags))
+                    next_service.t_server2.start()
                     self.serving.start()
             elif flags["line2"]:
                 flags["save_service"] = True
                 self.serving.join()
-                line2.remove_service()
+                if next_service.finished:
+                    line2.remove_service()
+                    next_service.t_server2.stop(final=True)
+                else:
+                    next_service.t_server2.stop()
+                    next_service.t_line2.start()
                 flags["line2"] = False
             else:
                 flags["save_service"] = False
                 next_service = line1.next()
+                next_service.t_line1.stop(final=True)
+                next_service.t_server1.start()
                 self.serve(next_service, flags)
+                next_service.t_server1.stop(final=True)
                 line1.remove_service()
                 line2.add(next_service)
+                next_service.t_line2.start()

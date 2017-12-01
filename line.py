@@ -12,7 +12,6 @@ class Line:
 
     def add(self, service):
         self.items.append(service)
-		service.initial = datetime.now()
 
     def empty(self):
         return not self.items

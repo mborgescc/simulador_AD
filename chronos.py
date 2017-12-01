@@ -61,13 +61,13 @@ class Chronometer:
             if item[0] == _START or item[0] == _RESUME:
                 initial = item[1]
                 last_start = True
-            else:
-                if last_start:
-                    end = item[1]
-                    delta = end - initial
-                    time_sum += delta.seconds * 1000000 + delta.microseconds
+            elif last_start:
+                end = item[1]
+                delta = end - initial
+                time_sum += delta.seconds * 1000000 + delta.microseconds
+                last_start = False
         if spent_array[-1][0] == _START or spent_array[-1][0] == _RESUME:
-            end = item[1]
+            end = datetime.now()
             delta = end - initial
             time_sum += delta.seconds * 1000000 + delta.microseconds
 

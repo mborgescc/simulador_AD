@@ -4,6 +4,7 @@ import random
 from line import Line
 from server import Server
 from service import Service
+from chronos import Chronometer
 from threading import Thread
 from datetime import datetime
 
@@ -23,37 +24,36 @@ class Simulator:
         self.s_line = Line()
         self.flags = {
             "stop": False,
-			"services_num": 0,
+            "services_num": 0,
         }
         self.rounds = rounds
         self.seed = seed
         self.iter = 0
+        LOGGER1.info("## Starting simulator ##")
         self.initial_time = datetime.now()
 
     def arrivals(self, rate):
         if self.seed:
+            LOGGER2.info("Semente: {}".format(self.seed))
             random.seed(self.seed)
 
-        timing = datetime.now()
-        LOGGER2.info("Timing: {}".format(timing))
-        self.arrivals_sample = []
-
+        arrivals_sample = []
+        chron = Chronometer("Arrivals")
         while not self.flags["stop"]:
+            chron.start()
             next_sample = random.expovariate(rate)
             LOGGER2.info("Waiting: {}".format(next_sample))
-            self.arrivals_sample.append(next)
-            pick_it = datetime.now()
-            delta = pick_it - timing
-            while not delta.seconds + delta.microseconds//1000 > next_sample:
-                pick_it = datetime.now()
-                delta = pick_it - timing
-            timing = pick_it
-            LOGGER2.info("Timing: {}".format(timing))
-            service = Service(random.randint(1, 100))
+            arrivals_sample.append(next_sample)
+            while not chron.spent()/1000000 > next_sample:
+                print(chron.spent()/1000000)
+                pass
+            chron.stop(final=True)
+            chron.take_note("Service {} goes to line 1".format(self.iter), "arrivals".format(self.iter))
+            service = Service(random.randint(1, 100), self.iter)
             self.f_line.add(service)
-			self.iter += 1
-			self.flags["services_num"] += 1
-
+            service.t_line1.start()
+            self.iter += 1
+            self.flags["services_num"] += 1
 
     @property
     def rate(self):
@@ -62,9 +62,12 @@ class Simulator:
     def start(self):
         self.running = True
         LOGGER1.info("Initializing server")
-        Thread(target=self.server.start, args=(self.flags, self.f_line, self.s_line))
+        t_server = Thread(target=self.server.start, args=(self.flags, self.f_line, self.s_line))
         LOGGER1.info("Initializing arrivals")
-        Thread(target=self.arrivals, args=(0.2,))
+        t_arrivals = Thread(target=self.arrivals, args=(self.rate,))
+
+        t_server.start()
+        t_arrivals.start()
         while self.iter < self.rounds:
             if msvcrt.kbhit() and ord(msvcrt.getch()) == 27:
                 self.flags["stop"] = True
