@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-import numpy
 import random
-from log import get_client
+import logging
 from chronos import Chronometer
 
 # Definindo cliente de LOG
-LOGGER = get_client("service")
+LOGGER = logging.getLogger("service")
 
 
 # Esta classe implementa o freguês por meio de um serviço preparado para rodar duas vezes

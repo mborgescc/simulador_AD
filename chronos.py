@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from log import get_client
+import logging
 from datetime import datetime
 
 _START = 0
@@ -89,7 +89,7 @@ class Chronometer:
 
     # Simplificação do processo de LOG para o tempo gasto
     def take_note(self, action, module):
-        LOGGER = get_client(module)
+        LOGGER = logging.getLogger(module)
         LOGGER.info("{} - {} - Running for: {} Microsseconds;".format(
             self.label, action, self.spent()
         ))

@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import random
-from log import get_client
+import logging
 
-LOGGER = get_client("line")
+LOGGER = logging.getLogger("line")
 
 
+# Esta classe implementa uma fila FCFS
 class Line:
 
     def __init__(self, last_line=False):
@@ -14,6 +15,8 @@ class Line:
         self.id = random.randint(0, 1000)
 
         LOGGER.info("Line {} being created".format(self.id))
+
+        # Apenas a fila 2 gerenciará o arquivo de medidas de tempo
         if self.last:
             with open("service_measures.csv", "w") as f:
                 f.write('"T1","W1","T2","W2"\n')
@@ -22,11 +25,13 @@ class Line:
     def size(self):
         return len(self.items)
 
+    # Retorna o próximo serviço da fila (sem retirar)
     def next(self):
         if self.items:
             LOGGER.info("Next service have been requested to line {}".format(self.id))
             return self.items[0]
 
+    # Adiciona serviço à fila
     def add(self, service):
         self.items.append(service)
         LOGGER.info("Service added to line {}".format(self.id))
@@ -34,10 +39,14 @@ class Line:
     def empty(self):
         return not self.items
 
+    # Remove o serviço da fila
     def remove_service(self):
         service = self.items.pop(0)
         service.finished = False
         LOGGER.info("Service removed from line {}".format(self.id))
+
+        # quando for retirado da fila 2, imprime todas as métricas calculadas
+        # no arquivo de medidas de tempo
         if self.last:
             with open("service_measures.csv", "a") as f:
                 f.write("{},{},{},{}\n".format(

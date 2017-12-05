@@ -2,7 +2,7 @@
 
 import logging
 
-
+# Este método retorna um cliente de log
 def get_client(module):
     logger = logging.getLogger(module)
     logger.setLevel(logging.INFO)
