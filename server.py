@@ -29,7 +29,7 @@ class Server:
 
     # Método responsável por gerar o arquivo com as medidas de tamanho de fila
     def capture_measures(self, flags, line1, line2):
-        with open("line_measures.csv", "w") as f:
+        with open("line_measures_{}.csv".format(flags["round"]), "w") as f:
             f.write('"N1","Nq1","N2","Nq2"\n')
 
             while not flags["stop"]:
@@ -49,7 +49,7 @@ class Server:
 
         while not flags["stop"]:  # Enquanto o simulador não finalizar,
 
-            print(flags)
+            # print(flags)
             if line1.empty():  # Se a fila 1 estiver vazia,
 
                 if not line2.empty() and not self.running:  # Caso a fila 2 tenha alguém e o
@@ -74,7 +74,7 @@ class Server:
 
                     if service.finished:  # Se o serviço tiver terminado
                         self.l2_on_server = 0
-                        line2.remove_service()  # Remove da fila 2
+                        line2.remove_service(flags)  # Remove da fila 2
                         service.t_server2.stop(final=True)
                         flags["served"] += 1  # Incrementa o número de fregueses servidos
                         flags["services_num"] -= 1
@@ -94,7 +94,7 @@ class Server:
                 if service.finished:  # Se o serviço tiver terminado
                     LOGGER.info("{} finished".format(service.label))
                     self.l2_on_server = 0
-                    line2.remove_service()  # Remove da fila 2
+                    line2.remove_service(flags)  # Remove da fila 2
                     service.t_server2.stop(final=True)
                     flags["served"] += 1  # Incrementa o número de fregueses servidos
                     flags["services_num"] -= 1
@@ -117,7 +117,7 @@ class Server:
                 self.l1_on_server = 0
                 service.t_server1.stop(final=True)
                 self.running = False
-                line1.remove_service()
+                line1.remove_service(flags)
                 LOGGER.info("Removing service from server")
                 line2.add(service)
                 service.t_line2.start()

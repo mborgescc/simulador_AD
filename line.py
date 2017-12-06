@@ -9,7 +9,7 @@ LOGGER = logging.getLogger("line")
 # Esta classe implementa uma fila FCFS
 class Line:
 
-    def __init__(self, last_line=False):
+    def __init__(self, flags, last_line=False):
         self.items = []
         self.last = last_line
         self.id = random.randint(0, 1000)
@@ -18,7 +18,7 @@ class Line:
 
         # Apenas a fila 2 gerenciará o arquivo de medidas de tempo
         if self.last:
-            with open("service_measures.csv", "w") as f:
+            with open("service_measures_{}.csv".format(flags["round"]), "w") as f:
                 f.write('"T1","W1","T2","W2"\n')
 
     @property
@@ -40,7 +40,7 @@ class Line:
         return not self.items
 
     # Remove o serviço da fila
-    def remove_service(self):
+    def remove_service(self, flags):
         service = self.items.pop(0)
         service.finished = False
         LOGGER.info("Service removed from line {}".format(self.id))
@@ -48,7 +48,7 @@ class Line:
         # quando for retirado da fila 2, imprime todas as métricas calculadas
         # no arquivo de medidas de tempo
         if self.last:
-            with open("service_measures.csv", "a") as f:
+            with open("service_measures_{}.csv".format(flags["round"]), "a") as f:
                 f.write("{},{},{},{}\n".format(
                     service.t_line1.spent() + service.t_server1.spent(),
                     service.t_line1.spent(),

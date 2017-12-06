@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import numpy as np
 import msvcrt
 import random
 from log import get_client
@@ -20,17 +20,19 @@ LOGGER5 = get_client("server")
 # Classe responsável pelo simulador como um todo
 class Simulator:
 
-    def __init__(self, server_use, rounds, seed=None):
+    def __init__(self, server_use, rounds, round, seed=None):
         self.running = False
         self.server_use = server_use
         self.server = Server()  # Servidor
-        self.f_line = Line()  # Fila 1
-        self.s_line = Line(last_line=True)  # Fila 2
+        self.measures = {}
         self.flags = {  # Dicionário usado para comunicação entre threads
             "stop": False,
             "services_num": 0,
             "served": 0,
+			"round": round
         }
+        self.f_line = Line(flags)  # Fila 1
+        self.s_line = Line(flags, last_line=True)  # Fila 2
         self.rounds = rounds
         self.seed = seed
         self.iter = 0
@@ -46,6 +48,14 @@ class Simulator:
             self.rounds
         ))
         self.initial_time = datetime.now()
+
+    def mean(self, values):
+        sum = 0
+        for item in values:
+            sum += item
+        if len(values) == 0:
+            return 0
+        return sum/len(values)
 
     # Método gerador de fregueses (roda em thread separada)
     def arrivals(self, rate):
@@ -96,13 +106,75 @@ class Simulator:
             # Continua em loop
 
         self.flags["stop"] = True  # Ao terminar, manda um sinal para todas as threads finalizarem
-        print("Aguarde a finalização do simulador...")
+        # print("Aguarde a finalização do simulador...")
         t_server.join()
         t_arrivals.join()
 
         LOGGER1.info("Finished simulator")
 
         # É hora de calcular: E[W], E[T], E[Nq], E[N], V[W] (PARA FILAS 1 E 2)
+		self.take_off_transient()
+        self.calculate_measures()
+		
+    def calculate_measures(self):
+		self.measures["E[W1]"] = np.mean(self.measures["W1"])
+        self.measures["E[T1]"] = np.mean(self.measures["T1"])
+        self.measures["E[N1]"] = np.mean(self.measures["N1"])
+        self.measures["E[Nq1]"] = np.mean(self.measures["Nq1"])
+        self.measures["V[W1]"] = np.var(self.measures["W1"])
+        self.measures["E[W2]"] = np.mean(self.measures["W2"])
+        self.measures["E[T2]"] = np.mean(self.measures["T2"])
+        self.measures["E[N2]"] = np.mean(self.measures["N2"])
+        self.measures["E[Nq2]"] = np.mean(self.measures["Nq2"])
+        self.measures["V[W2]"] = np.var(self.measures["W2"])
 
+        print(
+            "Simulador {}:\n"
+            "- Fila 1:\n    >> E[W] = {}\n    >> E[T] = {}\n    >> E[N] = {}\n    >> E[Nq] = {}\n    >> Var[W] = {}\n\n"
+            "- Fila 2:\n    >> E[W] = {}\n    >> E[T] = {}\n    >> E[N] = {}\n    >> E[Nq] = {}\n    >> Var[W] = {}\n".format(
+                self.flags["round"]
+                self.measures["E[W1]"],
+                self.measures["E[T1]"],
+                self.measures["E[N1]"],
+                self.measures["E[Nq1]"],
+                self.measures["V[W1]"],
+                self.measures["E[W2]"],
+                self.measures["E[T2]"],
+                self.measures["E[N2]"],
+                self.measures["E[Nq2]"],
+                self.measures["V[W2]"]
+            )
+        )
 
+    def take_off_transient(self):
+        self.measures = {
+            "W1": [],
+            "W2": [],
+            "T1": [],
+            "T2": [],
+            "Nq1": [],
+            "Nq2": [],
+            "N1": [],
+            "N2": [],
+        }
+
+        with open("line_measures.csv", "r") as f:
+            f.readline()
+            for line in f:
+                splitted = line.split(",")
+                self.measures["N1"].append(int(splitted[0]))
+                self.measures["Nq1"].append(int(splitted[1]))
+                self.measures["N2"].append(int(splitted[2]))
+                self.measures["Nq2"].append(int(splitted[3]))
+				
+        with open("service_measures.csv", "r") as f:
+            f.readline()
+            for line in f:
+                splitted = line.split(",")
+                self.measures["T1"].append(int(splitted[0])/1000000)
+                self.measures["W1"].append(int(splitted[1])/1000000)
+                self.measures["T2"].append(int(splitted[2])/1000000)
+                self.measures["W2"].append(int(splitted[3])/1000000)
+
+		# Calcular fase transiente
 
