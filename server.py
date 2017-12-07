@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from datetime import datetime
 from threading import Thread
 from time import sleep
 
@@ -30,11 +31,12 @@ class Server:
     # Método responsável por gerar o arquivo com as medidas de tamanho de fila
     def capture_measures(self, flags, line1, line2):
         with open("line_measures_{}.csv".format(flags["round"]), "w") as f:
-            f.write('"N1","Nq1","N2","Nq2"\n')
+            f.write('"Timestamp","N1","Nq1","N2","Nq2"\n')
 
             while not flags["stop"]:
                 sleep(0.01)
-                f.write("{},{},{},{}\n".format(
+                f.write("{},{},{},{},{}\n".format(
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
                     line1.size,
                     line1.size - self.l1_on_server,
                     line2.size,

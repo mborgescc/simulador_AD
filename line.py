@@ -2,6 +2,7 @@
 
 import random
 import logging
+from datetime import datetime
 
 LOGGER = logging.getLogger("line")
 
@@ -19,7 +20,7 @@ class Line:
         # Apenas a fila 2 gerenciará o arquivo de medidas de tempo
         if self.last:
             with open("service_measures_{}.csv".format(flags["round"]), "w") as f:
-                f.write('"T1","W1","T2","W2"\n')
+                f.write('"Timestamp","T1","W1","T2","W2"\n')
 
     @property
     def size(self):
@@ -49,7 +50,8 @@ class Line:
         # no arquivo de medidas de tempo
         if self.last:
             with open("service_measures_{}.csv".format(flags["round"]), "a") as f:
-                f.write("{},{},{},{}\n".format(
+                f.write("{},{},{},{},{}\n".format(
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),
                     service.t_line1.spent() + service.t_server1.spent(),
                     service.t_line1.spent(),
                     service.t_line2.spent() + service.t_server2.spent(),

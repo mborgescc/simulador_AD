@@ -9,6 +9,8 @@ from service import Service
 from chronos import Chronometer
 from threading import Thread
 from datetime import datetime
+from scipy import optimize as opt
+from matplotlib import pyplot as plt
 
 LOGGER1 = get_client("simulator")
 LOGGER2 = get_client("arrivals")
@@ -20,7 +22,8 @@ LOGGER5 = get_client("server")
 # Classe responsável pelo simulador como um todo
 class Simulator:
 
-    def __init__(self, server_use, rounds, round, seed=None):
+    def __init__(self, server_use, rounds, round_number, epsilon, seed=None):
+        self.epsilon = epsilon
         self.running = False
         self.server_use = server_use
         self.server = Server()  # Servidor
@@ -29,13 +32,14 @@ class Simulator:
             "stop": False,
             "services_num": 0,
             "served": 0,
-			"round": round
+            "round": round_number
         }
-        self.f_line = Line(flags)  # Fila 1
-        self.s_line = Line(flags, last_line=True)  # Fila 2
+        self.f_line = Line(self.flags)  # Fila 1
+        self.s_line = Line(self.flags, last_line=True)  # Fila 2
         self.rounds = rounds
         self.seed = seed
         self.iter = 0
+        self.finished_by_key = False
 
         # Inicializando clientes de LOG
         LOGGER2.info("## Initializing arrivals ##")
@@ -47,15 +51,7 @@ class Simulator:
             self.seed,
             self.rounds
         ))
-        self.initial_time = datetime.now()
-
-    def mean(self, values):
-        sum = 0
-        for item in values:
-            sum += item
-        if len(values) == 0:
-            return 0
-        return sum/len(values)
+        self.initial_time = None
 
     # Método gerador de fregueses (roda em thread separada)
     def arrivals(self, rate):
@@ -93,6 +89,7 @@ class Simulator:
         t_server = Thread(target=self.server.start, args=(self.flags, self.f_line, self.s_line), name="server")
         LOGGER1.info("Initializing arrivals")
         t_arrivals = Thread(target=self.arrivals, args=(self.rate,), name="arrivals")
+        self.initial_time = datetime.now()
         t_server.start()
         t_arrivals.start()
 
@@ -102,6 +99,8 @@ class Simulator:
                                                     # que o número de rodadas definido
             if msvcrt.kbhit() and ord(msvcrt.getch()) == 27:  # A menos que se pressione ESC
                 LOGGER1.info("Finished by ESC Key press")
+                print("Terminando o simulador...")
+                self.finished_by_key = True
                 break
             # Continua em loop
 
@@ -113,11 +112,15 @@ class Simulator:
         LOGGER1.info("Finished simulator")
 
         # É hora de calcular: E[W], E[T], E[Nq], E[N], V[W] (PARA FILAS 1 E 2)
-		self.take_off_transient()
+        self.take_off_transient()
         self.calculate_measures()
-		
+
+        if self.finished_by_key:
+            return False
+        return True
+
     def calculate_measures(self):
-		self.measures["E[W1]"] = np.mean(self.measures["W1"])
+        self.measures["E[W1]"] = np.mean(self.measures["W1"])
         self.measures["E[T1]"] = np.mean(self.measures["T1"])
         self.measures["E[N1]"] = np.mean(self.measures["N1"])
         self.measures["E[Nq1]"] = np.mean(self.measures["Nq1"])
@@ -130,9 +133,11 @@ class Simulator:
 
         print(
             "Simulador {}:\n"
-            "- Fila 1:\n    >> E[W] = {}\n    >> E[T] = {}\n    >> E[N] = {}\n    >> E[Nq] = {}\n    >> Var[W] = {}\n\n"
-            "- Fila 2:\n    >> E[W] = {}\n    >> E[T] = {}\n    >> E[N] = {}\n    >> E[Nq] = {}\n    >> Var[W] = {}\n".format(
-                self.flags["round"]
+            "- Fila 1:\n    >> E[W] = {}\n    >> E[T] = {}\n    >> E[N] = {}\n"
+            "    >> E[Nq] = {}\n    >> Var[W] = {}\n\n"
+            "- Fila 2:\n    >> E[W] = {}\n    >> E[T] = {}\n    >> E[N] = {}\n"
+            "    >> E[Nq] = {}\n    >> Var[W] = {}\n\n".format(
+                self.flags["round"],
                 self.measures["E[W1]"],
                 self.measures["E[T1]"],
                 self.measures["E[N1]"],
@@ -147,7 +152,7 @@ class Simulator:
         )
 
     def take_off_transient(self):
-        self.measures = {
+        measures = {
             "W1": [],
             "W2": [],
             "T1": [],
@@ -155,26 +160,96 @@ class Simulator:
             "Nq1": [],
             "Nq2": [],
             "N1": [],
-            "N2": [],
+            "N2": []
         }
 
-        with open("line_measures.csv", "r") as f:
-            f.readline()
-            for line in f:
+        line_timestamps = []
+        service_timestamps = []
+        with open("line_measures_{}.csv".format(self.flags["round"]), "r") as f:
+            lines = f.readlines()
+            for line in lines[1:]:
                 splitted = line.split(",")
-                self.measures["N1"].append(int(splitted[0]))
-                self.measures["Nq1"].append(int(splitted[1]))
-                self.measures["N2"].append(int(splitted[2]))
-                self.measures["Nq2"].append(int(splitted[3]))
-				
-        with open("service_measures.csv", "r") as f:
-            f.readline()
-            for line in f:
+                line_timestamps.append(splitted[0])
+                measures["N1"].append(int(splitted[1]))
+                measures["Nq1"].append(int(splitted[2]))
+                measures["N2"].append(int(splitted[3]))
+                measures["Nq2"].append(int(splitted[4]))
+
+        with open("service_measures_{}.csv".format(self.flags["round"]), "r") as f:
+            lines = f.readlines()
+            for line in lines[1:]:
                 splitted = line.split(",")
-                self.measures["T1"].append(int(splitted[0])/1000000)
-                self.measures["W1"].append(int(splitted[1])/1000000)
-                self.measures["T2"].append(int(splitted[2])/1000000)
-                self.measures["W2"].append(int(splitted[3])/1000000)
+                service_timestamps.append(splitted[0])
+                measures["T1"].append(int(splitted[1])/1000000)
+                measures["W1"].append(int(splitted[2])/1000000)
+                measures["T2"].append(int(splitted[3])/1000000)
+                measures["W2"].append(int(splitted[4])/1000000)
 
-		# Calcular fase transiente
+        finishes = self.get_time_transient_finishes(service_timestamps, measures)
 
+        for i in range(len(service_timestamps)):
+            if service_timestamps[i] > finishes:
+                self.measures["W1"] = measures["W1"][i:]
+                self.measures["W2"] = measures["W2"][i:]
+                self.measures["T1"] = measures["T1"][i:]
+                self.measures["T2"] = measures["T2"][i:]
+                break
+
+        for i in range(len(line_timestamps)):
+            if line_timestamps[i] > finishes:
+                self.measures["N1"] = measures["N1"][i:]
+                self.measures["N2"] = measures["N2"][i:]
+                self.measures["Nq1"] = measures["Nq1"][i:]
+                self.measures["Nq2"] = measures["Nq2"][i:]
+                break
+
+    def get_time_transient_finishes(self, service_t, measures):
+        """
+        t_axis = np.array([self.time_passed(
+            self.initial_time,
+            datetime.strptime(time, "%Y-%m-%d %H:%M:%S.%f")
+        ) for time in service_t])
+        m_axis = np.array([x+y for x, y in zip(measures["T1"], measures["T2"])])
+
+        constants, matrix = opt.curve_fit(
+            self.transient_function,
+            t_axis,
+            m_axis,
+            bounds=([0.0, 1.0], [100000.0, 100000.])
+        )
+        plt.plot(t_axis, m_axis, 'b-', label='data')
+        plt.plot(
+            m_axis,
+            self.transient_function(m_axis, *constants),
+            'r-',
+            label='fit: a=%5.3f, b=%5.3f' % tuple(constants)
+        )
+        plt.legend()
+        plt.show()
+
+        for i in range(1, len(service_t)):
+            if m_axis[i] - m_axis[i-1] < self.epsilon:
+                return service_t[i]
+
+        for i in range(len(measures["T1"])):
+            variances.append(
+                np.var([x+y for x, y in zip(measures["T1"][i:], measures["T2"][i:])])
+            )
+
+        variances = variances[0:-1]
+        print("Variâncias de cálculo do período transiente: {}".format(variances))
+
+        for i in range(len(variances)-3):
+            if variances[i+1] - variances[i] < self.epsilon:
+                if variances[i+2] - variances[i+1] < self.epsilon:
+                    if variances[i+3] - variances[i+2] < self.epsilon:
+                        return service_t[i]
+        """
+        return "0"
+
+    def time_passed(self, initial, final):
+        delta = final - initial
+        return delta.seconds + delta.microseconds/1000000
+
+    def transient_function(self, x, a, b):
+        return a - ((1/b)**x)
