@@ -22,8 +22,9 @@ LOGGER5 = get_client("server")
 # Classe responsável pelo simulador como um todo
 class Simulator:
 
-    def __init__(self, server_use, rounds, round_number, epsilon, seed=None):
+    def __init__(self, server_use, rounds, round_number, epsilon, window, seed=None):
         self.epsilon = epsilon
+        self.window = window
         self.running = False
         self.server_use = server_use
         self.server = Server()  # Servidor
@@ -185,7 +186,7 @@ class Simulator:
                 measures["T2"].append(int(splitted[3])/1000000)
                 measures["W2"].append(int(splitted[4])/1000000)
 
-        finishes = self.get_time_transient_finishes(service_timestamps, measures)
+        finishes = self.get_time_transient_finishes(line_timestamps, measures)
 
         for i in range(len(service_timestamps)):
             if service_timestamps[i] > finishes:
@@ -203,7 +204,33 @@ class Simulator:
                 self.measures["Nq2"] = measures["Nq2"][i:]
                 break
 
-    def get_time_transient_finishes(self, service_t, measures):
+    def get_time_transient_finishes(self, line_t, measures):
+
+        sum = 0
+        initial_t = line_t[0]
+        acc_values = []
+        timestamps = []
+        for i in range(1, len(measures["N1"])):
+            services_on_system = measures["N1"][i] + measures["N2"][i]
+            passed_time = self.time_passed(line_t[i-1], line_t[i])
+            sum += services_on_system * passed_time
+            acc_values.append(sum)
+
+            timestamps.append(self.time_passed(initial_t, line_t[i]))
+
+        acc = [x/y for x, y in zip(acc_values, timestamps)]
+
+        for i in range(self.window, len(acc)):
+            var = np.var(np.array(acc[i-self.window:i]))
+            if var < self.epsilon:
+                transient_found = i-self.window
+                break
+
+        plt.plot(timestamps, acc, 'b-')
+        plt.axvline(x=timestamps[transient_found])
+        plt.savefig("transient_{}.png".format(self.flags["round"]))
+
+
         """
         t_axis = np.array([self.time_passed(
             self.initial_time,
@@ -245,11 +272,9 @@ class Simulator:
                     if variances[i+3] - variances[i+2] < self.epsilon:
                         return service_t[i]
         """
-        return "0"
+        return line_t[transient_found+1]
 
     def time_passed(self, initial, final):
-        delta = final - initial
+        delta = datetime.strptime(final, "%Y-%m-%d %H:%M:%S.%f") - \
+                datetime.strptime(initial, "%Y-%m-%d %H:%M:%S.%f")
         return delta.seconds + delta.microseconds/1000000
-
-    def transient_function(self, x, a, b):
-        return a - ((1/b)**x)
